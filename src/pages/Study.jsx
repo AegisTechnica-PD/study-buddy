@@ -19,7 +19,8 @@ export default function Study() {
   const [deck, setDeck] = useState(null)
   const [cards, setCards] = useState([])
   const [stats, setStats] = useState({})
-  const [cfg, setCfg] = useState({ mode: 'flip', count: 20, order: 'smart', kind: 'all' })
+  // count 0 means "all cards", so the default matches the full deck
+  const [cfg, setCfg] = useState({ mode: 'flip', count: 0, order: 'smart', kind: 'all' })
   const [phase, setPhase] = useState('setup')
   const [queue, setQueue] = useState([])
   const [idx, setIdx] = useState(0)
@@ -169,10 +170,8 @@ export default function Study() {
         <div className="card row">
           <label>How many cards
             <select value={cfg.count} onChange={(e) => setCfg({ ...cfg, count: e.target.value })}>
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={30}>30</option>
-              <option value={0}>All ({cards.length})</option>
+              {[10, 20, 30].filter((n) => n < poolOf().length).map((n) => <option key={n} value={n}>{n}</option>)}
+              <option value={0}>All ({poolOf().length})</option>
             </select>
           </label>
           {cfg.mode !== 'test' && (
@@ -250,11 +249,11 @@ function Question({ card, kind, feedback, verify, allowOverride, allCards, onAns
 
   if (kind === 'flip') {
     return (
-      <div className="card flash" onClick={() => setRevealed(true)}>
+      <div className={`card flash${card.front.length > 80 ? ' long' : ''}`} onClick={() => setRevealed(true)}>
         <p className="q">{card.front}</p>
         {revealed ? (
           <>
-            <p className="a">{card.back}</p>
+            <p className="a"><mark>{card.back}</mark></p>
             {expl}
             <div className="row center-row">
               <button className="bad" onClick={(e) => { e.stopPropagation(); onClaim('wrong', ms()) }}>Missed it</button>
@@ -273,7 +272,7 @@ function Question({ card, kind, feedback, verify, allowOverride, allCards, onAns
   if (kind === 'mc') {
     const done = picked !== null
     return (
-      <div className="card flash">
+      <div className={`card flash${card.front.length > 80 ? ' long' : ''}`}>
         {banner}
         <p className="q">{card.front}</p>
         <div className="choices">
@@ -307,7 +306,7 @@ function Question({ card, kind, feedback, verify, allowOverride, allCards, onAns
     setChecked(ok)
   }
   return (
-    <div className="card flash">
+    <div className={`card flash${card.front.length > 80 ? ' long' : ''}`}>
       {banner}
       <p className="q">{card.front}</p>
       {checked === null ? (
@@ -318,7 +317,7 @@ function Question({ card, kind, feedback, verify, allowOverride, allCards, onAns
       ) : (
         <>
           <p className={checked ? 'good-text' : 'bad-text'}>{checked ? 'Correct' : 'Not quite'}</p>
-          <p className="a">{card.back}</p>
+          <p className="a"><mark>{card.back}</mark></p>
           {expl}
           <div className="row center-row">
             {!checked && allowOverride && <button onClick={() => onAnswer('correct', ms(), 'override')}>I was right</button>}

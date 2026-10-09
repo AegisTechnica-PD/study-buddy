@@ -26,6 +26,7 @@ export default function Login() {
     <div className="center">
       <form className="card login" onSubmit={submit}>
         <h1>Study Buddy</h1>
+        <p className="muted tagline">Short sessions. Real progress.</p>
         <label>Username (parents can use their email)
           <input value={username} onChange={(e) => setUsername(e.target.value)} autoCapitalize="none" autoComplete="username" required />
         </label>

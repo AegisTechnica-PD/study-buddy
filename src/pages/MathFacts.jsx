@@ -279,7 +279,7 @@ export default function MathFacts() {
               {!timed && <p className="muted">Type {q.fact.answer} to keep going</p>}
             </>
           ) : status === 'right' ? (
-            <div className="eq good-text">{q.fact.answer}</div>
+            <div className="eq good-text"><mark>{q.fact.answer}</mark></div>
           ) : null}
           <input
             ref={inputRef}

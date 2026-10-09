@@ -60,9 +60,12 @@ export default function Home() {
         </div>
       </div>
 
-      <Link to="/math" className="card deck">
-        <h4>Math facts</h4>
-        <p className="muted">Quick drills for + − × ÷. Build speed and accuracy a few minutes a day.</p>
+      <Link to="/math" className="card deck mathcard">
+        <div>
+          <h4>Math facts</h4>
+          <p className="muted">Quick drills. Build speed and accuracy a few minutes a day.</p>
+        </div>
+        <span className="ops" aria-hidden="true">+ − × ÷</span>
       </Link>
 
       <h3>My decks</h3>
@@ -71,14 +74,22 @@ export default function Home() {
         {decks.map((d) => {
           const active = cards.filter((c) => c.deck_id === d.id && c.status === 'active')
           const due = active.filter((c) => isDue(stats[c.id])).length
+          const mastered = active.filter((c) => (stats[c.id]?.box || 0) >= 4).length
+          const mp = active.length ? Math.round((mastered / active.length) * 100) : 0
           const pending = cards.filter((c) => c.deck_id === d.id && c.status === 'pending').length
           return (
-            <Link key={d.id} to={`/deck/${d.id}`} className="card deck">
-              <h4>{d.title}</h4>
-              {d.subject && <span className="muted">{d.subject}</span>}
-              <p>{active.length} cards, {due} due</p>
-              {pending > 0 && <span className="badge">{pending} to review</span>}
-            </Link>
+            <div key={d.id} className="card deck">
+              <Link to={`/deck/${d.id}`} className="decklink">
+                <h4>{d.title}</h4>
+                {d.subject && <span className="muted">{d.subject}</span>}
+                <div className="meta"><span>{active.length} cards</span>{due > 0 && <span className="due">{due} due</span>}</div>
+                {pending > 0 && <span className="badge">{pending} to review</span>}
+              </Link>
+              <div className="deckrule" title={`${mp}% mastered`}><i style={{ width: `${mp}%` }} /></div>
+              <div className="deckactions">
+                <button className="primary" disabled={active.length < 1} onClick={() => nav(`/study/${d.id}`)}>Study</button>
+              </div>
+            </div>
           )
         })}
       </div>

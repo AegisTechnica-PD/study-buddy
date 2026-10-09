@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { C, dot } from '../lib/chartColors.js'
 import { supabase } from '../lib/supabase.js'
 import { OPS, OP_LIST, factAt, keyOf, textOf, thresholdMs, universeSize } from '../lib/mathfacts.js'
 import { weekStart } from '../lib/stats.js'
@@ -52,7 +53,7 @@ export default function MathAnalytics({ userId }) {
         <h3>Weekly accuracy</h3>
         <div style={{ width: '100%', height: 200 }}>
           <ResponsiveContainer>
-            <LineChart data={m.weekly}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="label" fontSize={11} /><YAxis domain={[0, 100]} fontSize={11} unit="%" /><Tooltip /><Line type="monotone" dataKey="accuracy" stroke="#1f9d6b" strokeWidth={2} dot connectNulls /></LineChart>
+            <LineChart data={m.weekly}><CartesianGrid vertical={false} /><XAxis dataKey="label" fontSize={11} /><YAxis domain={[0, 100]} fontSize={11} unit="%" /><Tooltip /><Line type="monotone" dataKey="accuracy" stroke={C.accuracy} strokeWidth={2} dot={dot(C.accuracy)} connectNulls /></LineChart>
           </ResponsiveContainer>
         </div>
       </section>
@@ -61,7 +62,7 @@ export default function MathAnalytics({ userId }) {
         <h3>Weekly speed (seconds per correct answer, lower is better)</h3>
         <div style={{ width: '100%', height: 200 }}>
           <ResponsiveContainer>
-            <LineChart data={m.weekly}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="label" fontSize={11} /><YAxis fontSize={11} unit="s" /><Tooltip /><Line type="monotone" dataKey="seconds" stroke="#d9822b" strokeWidth={2} dot connectNulls /></LineChart>
+            <LineChart data={m.weekly}><CartesianGrid vertical={false} /><XAxis dataKey="label" fontSize={11} /><YAxis fontSize={11} unit="s" /><Tooltip /><Line type="monotone" dataKey="seconds" stroke={C.speed} strokeWidth={2} dot={dot(C.speed)} connectNulls /></LineChart>
           </ResponsiveContainer>
         </div>
       </section>

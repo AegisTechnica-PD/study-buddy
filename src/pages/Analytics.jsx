@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis
 } from 'recharts'
+import { C, dot } from '../lib/chartColors.js'
 import { supabase } from '../lib/supabase.js'
 import { resultValue } from '../lib/srs.js'
 import { dayKey, fmtMin, streak, weekStart } from '../lib/stats.js'
@@ -58,23 +59,23 @@ export default function Analytics({ userId }) {
 
       <section className="card">
         <h3>Study minutes per day (last 14 days)</h3>
-        <Chart><BarChart data={m.daily}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="label" fontSize={11} /><YAxis fontSize={11} /><Tooltip /><Bar dataKey="minutes" fill="#4f6df5" radius={[4, 4, 0, 0]} /></BarChart></Chart>
+        <Chart><BarChart data={m.daily}><CartesianGrid vertical={false} /><XAxis dataKey="label" fontSize={11} /><YAxis fontSize={11} /><Tooltip /><Bar dataKey="minutes" fill={C.time} maxBarSize={28} radius={[4, 4, 0, 0]} /></BarChart></Chart>
       </section>
 
       <section className="card">
         <h3>Weekly accuracy (are they improving?)</h3>
-        <Chart><LineChart data={m.weekly}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="label" fontSize={11} /><YAxis domain={[0, 100]} fontSize={11} unit="%" /><Tooltip /><Line type="monotone" dataKey="accuracy" stroke="#1f9d6b" strokeWidth={2} dot connectNulls /></LineChart></Chart>
+        <Chart><LineChart data={m.weekly}><CartesianGrid vertical={false} /><XAxis dataKey="label" fontSize={11} /><YAxis domain={[0, 100]} fontSize={11} unit="%" /><Tooltip /><Line type="monotone" dataKey="accuracy" stroke={C.accuracy} strokeWidth={2} dot={dot(C.accuracy)} connectNulls /></LineChart></Chart>
       </section>
 
       <section className="card">
         <h3>Weekly study minutes</h3>
-        <Chart><BarChart data={m.weekly}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="label" fontSize={11} /><YAxis fontSize={11} /><Tooltip /><Bar dataKey="minutes" fill="#4f6df5" radius={[4, 4, 0, 0]} /></BarChart></Chart>
+        <Chart><BarChart data={m.weekly}><CartesianGrid vertical={false} /><XAxis dataKey="label" fontSize={11} /><YAxis fontSize={11} /><Tooltip /><Bar dataKey="minutes" fill={C.time} maxBarSize={28} radius={[4, 4, 0, 0]} /></BarChart></Chart>
       </section>
 
       {m.tests.length > 0 && (
         <section className="card">
           <h3>Test scores over time</h3>
-          <Chart><LineChart data={m.tests}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="label" fontSize={11} /><YAxis domain={[0, 100]} fontSize={11} unit="%" /><Tooltip /><Line type="monotone" dataKey="score" stroke="#d9822b" strokeWidth={2} dot /></LineChart></Chart>
+          <Chart><LineChart data={m.tests}><CartesianGrid vertical={false} /><XAxis dataKey="label" fontSize={11} /><YAxis domain={[0, 100]} fontSize={11} unit="%" /><Tooltip /><Line type="monotone" dataKey="score" stroke={C.test} strokeWidth={2} dot={dot(C.test)} /></LineChart></Chart>
         </section>
       )}
 
