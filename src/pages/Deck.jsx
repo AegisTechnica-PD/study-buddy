@@ -3,10 +3,13 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { callApi } from '../lib/api.js'
 import { parseCardText } from '../lib/srs.js'
+import { useAuth } from '../auth.jsx'
+import SendCopy from './SendCopy.jsx'
 
 export default function Deck() {
   const { id } = useParams()
   const nav = useNavigate()
+  const { profile } = useAuth()
   const [deck, setDeck] = useState(null)
   const [cards, setCards] = useState([])
   const [sources, setSources] = useState([])
@@ -195,6 +198,8 @@ export default function Deck() {
           <button onClick={importPaste} disabled={!paste.trim()}>Import</button>
         </details>
       </section>
+
+      {profile.role === 'admin' && <SendCopy deck={deck} cards={cards} />}
 
       <section className="card">
         <div className="row between">

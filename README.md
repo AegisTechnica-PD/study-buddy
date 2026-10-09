@@ -39,6 +39,7 @@ Sign in as `paul`, open **Admin > Students**, and add each kid with a username, 
   - Either way the cards land in a review list first. Kids can edit or delete before approving.
   - Also supported: add cards by hand, or paste a list (CSV, or tab separated from Quizlet or a spreadsheet).
 - **Application questions:** on a deck page, "Write application questions" has Claude write AP-style scenario questions from the deck's approved definition cards. The right answer and the wrong answers are all terms from the deck, the wrong ones chosen because they are easy to confuse, and each question has a short explanation shown after answering. They go to the review list first. Study setup can drill definitions only, application only, or everything.
+- **Send a copy (admin only):** on any deck page, "Send a copy to a student" copies the approved cards (including application questions) to the students you tick. Each student gets their own copy with their own progress, and edits to one copy never affect another. Cards still waiting for review are not copied. Decks you create stay on your account until you send them.
 - **Study modes:** Flip, Multiple choice, Type it, and Test (random cards, no hints, scored at the end).
 - **Order:** "Smart" puts due and weak cards first, shuffled within groups. "Totally random" shuffles everything.
 - **Spaced repetition:** 5-box Leitner system. Right answer moves a card up (reviewed after 1, 3, 7, 14 days), wrong sends it back to box 1, unsure keeps its box. "Mastered" means box 4 or 5.
