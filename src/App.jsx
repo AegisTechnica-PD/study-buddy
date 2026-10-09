@@ -6,6 +6,7 @@ import Deck from './pages/Deck.jsx'
 import Study from './pages/Study.jsx'
 import Admin from './pages/Admin.jsx'
 import MathFacts from './pages/MathFacts.jsx'
+import { configProblem } from './lib/supabase.js'
 
 function Shell({ children }) {
   const { profile, signOut } = useAuth()
@@ -27,12 +28,13 @@ function Shell({ children }) {
 
 export default function App() {
   const { session, profile, loading, signOut } = useAuth()
+  if (configProblem) return <div className="center"><p className="err">{configProblem}</p></div>
   if (loading) return <div className="center">Loading...</div>
   if (!session) return <Login />
   if (!profile) {
     return (
       <div className="center">
-        <p>This login has no profile yet. Ask Dad to finish setting up your account.</p>
+        <p>You are signed in, but this login has no profile yet. Parents: run the profile insert from the README (setup step 5) and make sure the user's email is exactly paul@studyapp.internal. Kids: ask a parent to create your account in Admin.</p>
         <button onClick={signOut}>Sign out</button>
       </div>
     )

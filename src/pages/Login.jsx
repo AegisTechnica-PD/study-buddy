@@ -13,7 +13,12 @@ export default function Login() {
     setBusy(true)
     setErr('')
     const { error } = await signIn(username, password)
-    if (error) setErr('Wrong username or password.')
+    if (error) {
+      const m = String(error.message || '')
+      if (/invalid login credentials/i.test(m)) setErr('Wrong username or password.')
+      else if (/not confirmed/i.test(m)) setErr('This account is not confirmed. In Supabase, turn off "Confirm email" and confirm the user.')
+      else setErr(`Sign in failed: ${m || 'could not reach the server'}`)
+    }
     setBusy(false)
   }
 
@@ -21,7 +26,7 @@ export default function Login() {
     <div className="center">
       <form className="card login" onSubmit={submit}>
         <h1>Study Buddy</h1>
-        <label>Username
+        <label>Username (parents can use their email)
           <input value={username} onChange={(e) => setUsername(e.target.value)} autoCapitalize="none" autoComplete="username" required />
         </label>
         <label>Password

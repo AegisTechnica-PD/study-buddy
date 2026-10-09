@@ -64,6 +64,15 @@ A separate module (Math facts in the top bar) for addition, subtraction, multipl
 - Weekly overview of all kids: minutes, sessions, average score, last active.
 - Per kid: minutes per day (14 days), weekly minutes and weekly accuracy (8 weeks), test scores over time, last 14 days vs the prior 14 days accuracy change, mastery percentage, streak, per-deck breakdown, and the cards they miss most.
 
+## Can't sign in?
+
+- Kids sign in with their **username**. A parent account created with a real email signs in with that full email.
+- In Supabase > Authentication > Users the admin's email must match what you type (or be `paul@studyapp.internal` if you sign in as `paul`) and show as confirmed.
+- Supabase > Table Editor > `profiles` must have a row for that user (setup step 5).
+- Supabase > Authentication > Logs shows the exact reason for each failed attempt.
+- Message "missing its Supabase settings": add the Vercel variables, then **redeploy** (they are baked in at build time).
+- The project URL is `https://<ref>.supabase.co` with nothing after it. The app now strips a pasted `/rest/v1/` automatically.
+
 ## Costs and limits
 
 - PDF limit is 20 MB. Very long PDFs may time out at 60 seconds; split them by chapter.
