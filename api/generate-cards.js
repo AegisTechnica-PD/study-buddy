@@ -16,7 +16,7 @@ Return ONLY a JSON array, no commentary, no code fences. Each item: {"front": ".
 Do not invent wrong answers. The app builds multiple choice options from the teacher's other cards.`
   }
   return `The attached document is study material (notes, a textbook chapter, or a study guide) for ${level}.
-Write up to ${maxCards} high quality flashcards covering the most testable facts, definitions, concepts, formulas, dates, and cause and effect relationships. Spread them across the whole document.
+Write up to ${maxCards} high quality flashcards covering the most testable facts, definitions, concepts, formulas, dates, and cause and effect relationships. Spread them across the whole document. If the document is a list of key terms or vocabulary, make one card for every term listed, then use any remaining room for other testable facts.
 Rules: each "front" is a clear, self-contained question or prompt. Each "back" is a concise correct answer, under 25 words. Use only facts that appear in the material. No duplicates.
 ${SHAPE}`
 }
@@ -43,8 +43,8 @@ export default async function handler(req, res) {
 
   const { sourceId, mode = 'generate' } = req.body || {}
   // Copying a teacher's set must not truncate it, so extract mode allows far more cards.
-  const cap = mode === 'extract' ? 150 : 60
-  const maxCards = Math.min(Math.max(parseInt(req.body?.maxCards, 10) || (mode === 'extract' ? cap : 25), 5), cap)
+  const cap = mode === 'extract' ? 150 : 100
+  const maxCards = Math.min(Math.max(parseInt(req.body?.maxCards, 10) || (mode === 'extract' ? cap : 60), 5), cap)
 
   const { data: source } = await admin.from('sources').select('*').eq('id', sourceId).single()
   if (!source) return res.status(404).json({ error: 'Source not found' })
