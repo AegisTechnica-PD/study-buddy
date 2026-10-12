@@ -60,17 +60,25 @@ export function typedMatch(input, answer) {
 }
 
 // Returns shuffled options including the right one, or null if not enough to quiz.
+// Builds 4 options. Wrong answers come from the card's own look-alikes plus other cards in the deck,
+// and the three chosen are the ones closest in length to the right answer, so length never gives it away.
 export function makeChoices(card, allCards) {
-  const pool = (card.wrong_answers || []).filter(Boolean).slice(0, 3)
-  if (pool.length < 3) {
-    const others = shuffle(
-      allCards.filter((c) => c.id !== card.id && c.back !== card.back && (c.kind || 'term') === (card.kind || 'term')).map((c) => c.back)
-    )
-    for (const o of others) {
-      if (pool.length >= 3) break
-      if (!pool.includes(o)) pool.push(o)
-    }
+  const kind = card.kind || 'term'
+  const stored = (card.wrong_answers || []).filter(Boolean)
+  const fromDeck = allCards
+    .filter((c) => c.id !== card.id && c.back !== card.back && (c.kind || 'term') === kind)
+    .map((c) => c.back)
+  const seen = new Set([card.back])
+  const cands = []
+  for (const text of shuffle([...stored, ...fromDeck])) {
+    if (seen.has(text)) continue
+    seen.add(text)
+    cands.push({ text, own: stored.includes(text) })
   }
+  const len = Math.max(card.back.length, 1)
+  // distance in length, with a small bonus for the hand-written look-alikes
+  const score = (c) => Math.abs(c.text.length - len) / len - (c.own ? 0.15 : 0)
+  const pool = cands.sort((x, y) => score(x) - score(y)).slice(0, 3).map((c) => c.text)
   const opts = shuffle([card.back, ...pool])
   return opts.length >= 2 ? opts : null
 }

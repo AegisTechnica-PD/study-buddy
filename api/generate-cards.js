@@ -5,7 +5,10 @@ const MAX_BYTES = 20 * 1024 * 1024
 
 const SHAPE = `Return ONLY a JSON array, no commentary, no code fences. Each item:
 {"front": "...", "back": "...", "wrong": ["...", "...", "..."]}
-"wrong" must hold exactly 3 plausible but incorrect answers, similar in length and form to "back", for multiple choice.`
+"wrong" must hold exactly 3 plausible but incorrect answers, the SAME length and form as "back" (within about 20% of its character count; the right answer must never be the longest or most detailed one), for multiple choice.`
+
+const PHOTO_NOTE = `
+This is a photo, possibly of a handwritten or printed flashcard, several cards, or a page of notes. It may be tilted or show both sides of a card. Read all legible text carefully. If a photo shows one side of a card with the other side missing, make the card only if the term and answer are both visible. Never guess at illegible words; skip that card instead.`
 
 function buildPrompt(mode, maxCards, grade) {
   const level = grade ? `a student in grade ${grade}` : 'a middle or high school student'
@@ -44,7 +47,7 @@ export default async function handler(req, res) {
   const { sourceId, mode = 'generate' } = req.body || {}
   // Copying a teacher's set must not truncate it, so extract mode allows far more cards.
   const cap = mode === 'extract' ? 150 : 100
-  const maxCards = Math.min(Math.max(parseInt(req.body?.maxCards, 10) || (mode === 'extract' ? cap : 60), 5), cap)
+  const maxCards = Math.min(Math.max(parseInt(req.body?.maxCards, 10) || cap, 5), cap)
 
   const { data: source } = await admin.from('sources').select('*').eq('id', sourceId).single()
   if (!source) return res.status(404).json({ error: 'Source not found' })
@@ -54,8 +57,9 @@ export default async function handler(req, res) {
 
   try {
     const { data: file, error: dlErr } = await admin.storage.from('pdfs').download(source.storage_path)
-    if (dlErr) throw new Error(`Could not read PDF: ${dlErr.message}`)
+    if (dlErr) throw new Error(`Could not read the file: ${dlErr.message}`)
     const buf = Buffer.from(await file.arrayBuffer())
+    const isImage = /\.jpe?g$/i.test(source.storage_path)
     if (buf.length > MAX_BYTES) throw new Error('PDF is over 20 MB. Split it into smaller files.')
 
     const { data: owner } = await admin.from('profiles').select('grade').eq('id', source.owner_id).single()
@@ -73,8 +77,10 @@ export default async function handler(req, res) {
         messages: [{
           role: 'user',
           content: [
-            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: buf.toString('base64') } },
-            { type: 'text', text: buildPrompt(mode, maxCards, owner?.grade) }
+            isImage
+              ? { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: buf.toString('base64') } }
+              : { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: buf.toString('base64') } },
+            { type: 'text', text: buildPrompt(mode, maxCards, owner?.grade) + (isImage ? PHOTO_NOTE : '') }
           ]
         }]
       })
@@ -101,7 +107,7 @@ export default async function handler(req, res) {
     if (insErr) throw new Error(insErr.message)
 
     await admin.from('sources').update({ status: 'done', card_count: rows.length }).eq('id', source.id)
-    return res.json({ ok: true, count: rows.length })
+    return res.json({ ok: true, count: rows.length, capped: raw.length >= maxCards })
   } catch (e) {
     await admin.from('sources').update({ status: 'error', error: e.message }).eq('id', source.id)
     return res.status(500).json({ error: e.message })

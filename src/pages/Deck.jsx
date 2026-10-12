@@ -40,31 +40,72 @@ export default function Deck() {
   const active = cards.filter((c) => c.status === 'active')
   const pending = cards.filter((c) => c.status === 'pending')
 
-  async function uploadPdf(e) {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
-    if (file.type !== 'application/pdf') return setMsg('Please choose a PDF file.')
-    if (file.size > 20 * 1024 * 1024) return setMsg('That PDF is over 20 MB. Split it into smaller files.')
-    setMsg('')
-    setBusy('Uploading PDF...')
+  // Phone photos are huge and often HEIC. Redraw to a JPEG no wider than 1800px so the upload is small and always readable.
+  async function toJpeg(file) {
+    const url = URL.createObjectURL(file)
     try {
-      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-      const path = `${deck.owner_id}/${deck.id}/${Date.now()}-${safe}`
-      const up = await supabase.storage.from('pdfs').upload(path, file, { contentType: 'application/pdf' })
-      if (up.error) throw up.error
-      const { data: src, error } = await supabase
-        .from('sources')
-        .insert({ deck_id: deck.id, owner_id: deck.owner_id, filename: file.name, storage_path: path })
-        .select()
-        .single()
-      if (error) throw error
-      setBusy('Reading the PDF and writing cards. This can take up to a minute...')
-      const r = await callApi('/api/generate-cards', { sourceId: src.id, mode })
-      setMsg(`Added ${r.count} cards to review below.`)
-    } catch (err) {
-      setMsg(`Something went wrong: ${err.message}`)
+      const img = await new Promise((ok, no) => {
+        const i = new Image()
+        i.onload = () => ok(i)
+        i.onerror = () => no(new Error(`Could not open ${file.name}. Try taking the photo again.`))
+        i.src = url
+      })
+      const scale = Math.min(1, 1800 / Math.max(img.naturalWidth, img.naturalHeight))
+      const c = document.createElement('canvas')
+      c.width = Math.round(img.naturalWidth * scale)
+      c.height = Math.round(img.naturalHeight * scale)
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height)
+      const blob = await new Promise((ok) => c.toBlob(ok, 'image/jpeg', 0.85))
+      if (!blob) throw new Error('Could not process the photo.')
+      return blob
+    } finally {
+      URL.revokeObjectURL(url)
     }
+  }
+
+  async function uploadFiles(e) {
+    const files = Array.from(e.target.files || [])
+    e.target.value = ''
+    if (!files.length) return
+    const pdfs = files.filter((f) => f.type === 'application/pdf')
+    const imgs = files.filter((f) => f.type.startsWith('image/') || /\.(heic|heif|jpe?g|png)$/i.test(f.name))
+    if (pdfs.length + imgs.length !== files.length) return setMsg('Choose PDFs or photos only.')
+    if (pdfs.length && imgs.length) return setMsg('Choose either one PDF or a set of photos, not both at once.')
+    if (pdfs.length > 1) return setMsg('Upload one PDF at a time.')
+    if (pdfs[0] && pdfs[0].size > 20 * 1024 * 1024) return setMsg('That PDF is over 20 MB. Split it into smaller files.')
+    if (imgs.length > 30) return setMsg('Up to 30 photos at a time.')
+    setMsg('')
+    let total = 0
+    let failed = 0
+    const queue = pdfs.length ? pdfs : imgs
+    for (let i = 0; i < queue.length; i++) {
+      const file = queue[i]
+      const isPdf = file.type === 'application/pdf'
+      const label = isPdf ? 'PDF' : `photo ${i + 1} of ${queue.length}`
+      try {
+        setBusy(`Uploading ${label}...`)
+        const body = isPdf ? file : await toJpeg(file)
+        const safe = file.name.replace(/\.[^.]*$/, '').replace(/[^a-zA-Z0-9._-]/g, '_') || 'photo'
+        const path = `${deck.owner_id}/${deck.id}/${Date.now()}-${i}-${safe}${isPdf ? '.pdf' : '.jpg'}`
+        const up = await supabase.storage.from('pdfs').upload(path, body, { contentType: isPdf ? 'application/pdf' : 'image/jpeg' })
+        if (up.error) throw up.error
+        const { data: src, error } = await supabase
+          .from('sources')
+          .insert({ deck_id: deck.id, owner_id: deck.owner_id, filename: file.name, storage_path: path })
+          .select()
+          .single()
+        if (error) throw error
+        setBusy(isPdf ? 'Reading the PDF and writing cards. This can take up to a minute...' : `Reading ${label}...`)
+        const r = await callApi('/api/generate-cards', { sourceId: src.id, mode })
+        total += r.count
+        if (r.capped) setMsg('This file hit the card limit, so some cards may be missing. Upload the rest as a second file.')
+      } catch (err) {
+        failed++
+        setMsg(`Something went wrong with ${label}: ${err.message}`)
+      }
+    }
+    if (!failed) setMsg((m) => `Added ${total} cards to review below.${m.startsWith('This file hit') ? ' ' + m : ''}`)
+    else setMsg((m) => `${m} Added ${total} cards from the rest.`)
     setBusy('')
     load()
   }
@@ -135,9 +176,10 @@ export default function Deck() {
         <h3>Add study material</h3>
         <div className="seg">
           <label><input type="radio" checked={mode === 'generate'} onChange={() => setMode('generate')} /> Make flashcards from my notes</label>
-          <label><input type="radio" checked={mode === 'extract'} onChange={() => setMode('extract')} /> This PDF already has flashcards, copy them as written</label>
+          <label><input type="radio" checked={mode === 'extract'} onChange={() => setMode('extract')} /> This already has flashcards (PDF or photos of them), copy them as written</label>
         </div>
-        <input type="file" accept="application/pdf" onChange={uploadPdf} disabled={!!busy} />
+        <input type="file" accept="application/pdf,image/*" multiple onChange={uploadFiles} disabled={!!busy} />
+        <p className="muted">On a phone, choose Take Photo or Photo Library. You can pick several photos at once, one flashcard or page each. Check the review list afterward.</p>
         {busy && <p className="busy">{busy}</p>}
         {msg && <p className="note">{msg}</p>}
         {sources.some((s) => s.status === 'error') && (
