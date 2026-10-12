@@ -21,6 +21,9 @@ export default function Deck() {
   const [paste, setPaste] = useState('')
   const [showAll, setShowAll] = useState(false)
   const [nq, setNq] = useState(20)
+  const [editing, setEditing] = useState(false)
+  const [tTitle, setTTitle] = useState('')
+  const [tSubject, setTSubject] = useState('')
 
   const load = useCallback(async () => {
     const [d, c, s] = await Promise.all([
@@ -123,6 +126,22 @@ export default function Deck() {
     load()
   }
 
+  function startEdit() {
+    setTTitle(deck.title)
+    setTSubject(deck.subject || '')
+    setEditing(true)
+  }
+
+  async function saveEdit(e) {
+    e.preventDefault()
+    if (!tTitle.trim()) return
+    const patch = { title: tTitle.trim(), subject: tSubject.trim() || null }
+    const { error } = await supabase.from('decks').update(patch).eq('id', deck.id)
+    if (error) return setMsg(`Could not rename: ${error.message}`)
+    setEditing(false)
+    load()
+  }
+
   async function addCard(e) {
     e.preventDefault()
     if (!front.trim() || !back.trim()) return
@@ -177,19 +196,36 @@ export default function Deck() {
   return (
     <>
       <p><Link to="/">&larr; All decks</Link></p>
-      <div className="row between">
-        <h2>{deck.title}</h2>
-        <button className="primary big" disabled={active.length < 1} onClick={() => nav(`/study/${deck.id}`)}>
-          Study ({active.length})
-        </button>
-      </div>
-      {deck.subject && <p className="muted">{deck.subject}</p>}
+      {editing ? (
+        <form className="card row" onSubmit={saveEdit}>
+          <input autoFocus value={tTitle} onChange={(e) => setTTitle(e.target.value)} placeholder="Deck name" aria-label="Deck name" />
+          <input value={tSubject} onChange={(e) => setTSubject(e.target.value)} placeholder="Subject (optional)" aria-label="Subject" />
+          <button className="primary" disabled={!tTitle.trim()}>Save</button>
+          <button type="button" onClick={() => setEditing(false)}>Cancel</button>
+        </form>
+      ) : (
+        <>
+          <div className="row between">
+            <h2 className="titleedit">
+              {deck.title}
+              <button type="button" className="iconbtn" onClick={startEdit} aria-label="Edit deck name" title="Edit deck name">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+              </button>
+            </h2>
+            <button className="primary big" disabled={active.length < 1} onClick={() => nav(`/study/${deck.id}`)}>
+              Study ({active.length})
+            </button>
+          </div>
+          {deck.subject && <p className="muted">{deck.subject}</p>}
+        </>
+      )}
 
       <section className="card">
         <h3>Add cards</h3>
         <label className="pick">
           <b>Choose photos or a PDF</b>
-          <span>Photos of flashcards or notes, or a PDF. Pick them all at once. For two-sided flashcards, include both sides.</span>
+          <span>Photos of flashcards or notes, or a PDF. Pick them all at once.</span>
+          <span className="rule">Flashcards need two photos each, front and back, and both sides must have the same number written on them.</span>
           <input type="file" accept="application/pdf,image/*" multiple onChange={uploadFiles} disabled={!!busy} />
         </label>
         {busy && <p className="busy">{busy}</p>}
