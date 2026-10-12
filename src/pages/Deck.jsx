@@ -1,4 +1,5 @@
 import { PDFDocument } from 'pdf-lib'
+import { DOC_RE, chunkText, readDocument } from '../lib/extract.js'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
@@ -68,9 +69,10 @@ export default function Deck() {
   }
 
   async function uploadOne(file, i, body, isPdf) {
+    const kind = isPdf === 'txt' ? 'txt' : isPdf ? 'pdf' : 'jpg'
     const safe = file.name.replace(/\.[^.]*$/, '').replace(/[^a-zA-Z0-9._-]/g, '_') || 'photo'
-    const path = `${deck.owner_id}/${deck.id}/${Date.now()}-${i}-${safe}${isPdf ? '.pdf' : '.jpg'}`
-    const up = await supabase.storage.from('pdfs').upload(path, body, { contentType: isPdf ? 'application/pdf' : 'image/jpeg' })
+    const path = `${deck.owner_id}/${deck.id}/${Date.now()}-${i}-${safe}${'.' + kind}`
+    const up = await supabase.storage.from('pdfs').upload(path, body, { contentType: { pdf: 'application/pdf', jpg: 'image/jpeg', txt: 'text/plain' }[kind] })
     if (up.error) throw up.error
     const { data: src, error } = await supabase
       .from('sources')
@@ -87,17 +89,47 @@ export default function Deck() {
     if (!files.length) return
     const pdfs = files.filter((f) => f.type === 'application/pdf')
     const imgs = files.filter((f) => f.type.startsWith('image/') || /\.(heic|heif|jpe?g|png)$/i.test(f.name))
-    if (pdfs.length + imgs.length !== files.length) return setMsg('Choose PDFs or photos only.')
-    if (pdfs.length && imgs.length) return setMsg('Choose either one PDF or a set of photos, not both at once.')
-    if (pdfs.length > 1) return setMsg('Upload one PDF at a time.')
+    const docs = files.filter((f) => !pdfs.includes(f) && !imgs.includes(f) && (DOC_RE.test(f.name) || /\.(xls|doc|ppt)$/i.test(f.name)))
+    if (pdfs.length + imgs.length + docs.length !== files.length) return setMsg('Choose PDFs, photos, or Word, PowerPoint, Excel, CSV or text files.')
+    if ([pdfs, imgs, docs].filter((g) => g.length).length > 1) return setMsg('Choose one kind of file at a time: a PDF, a set of photos, or a document.')
+    if (pdfs.length > 1 || docs.length > 1) return setMsg('Upload one PDF or document at a time.')
     if (pdfs[0] && pdfs[0].size > 20 * 1024 * 1024) return setMsg('That PDF is over 20 MB. Split it into smaller files.')
     if (imgs.length > 40) return setMsg('Up to 40 photos at a time.')
     setMsg('')
     let total = 0
     let capped = false
     const failedParts = []
+    let skippedImages = 0
     try {
-      if (pdfs.length) {
+      if (docs.length) {
+        const file = docs[0]
+        setBusy('Opening the file...')
+        const got = await readDocument(file)
+        if (got.images) skippedImages = got.images
+        if (got.pairs) {
+          const rows = got.pairs.map((c) => ({ deck_id: deck.id, owner_id: deck.owner_id, front: c.front, back: c.back, status: 'pending' }))
+          const { error } = await supabase.from('cards').insert(rows)
+          if (error) throw error
+          total = rows.length
+        } else {
+          const pieces = chunkText(got.text)
+          if (!got.text.trim()) throw new Error('No text was found in that file. If it is mostly pictures, upload photos or a PDF instead.')
+          for (let i = 0; i < pieces.length; i++) {
+            const where = pieces.length > 1 ? `part ${i + 1} of ${pieces.length}` : 'the file'
+            try {
+              setBusy(`Reading ${where} and writing cards. Keep this page open...`)
+              const src = await uploadOne({ name: file.name.replace(/\.[^.]*$/, '') + (pieces.length > 1 ? ` (part ${i + 1})` : '') + '.txt' }, i, new Blob([pieces[i]], { type: 'text/plain' }), 'txt')
+              const r = await callApi('/api/generate-cards', { sourceId: src.id, mode, maxCards: pieces.length > 1 ? 40 : undefined })
+              total += r.count
+              capped = capped || r.capped
+            } catch (err) {
+              if (pieces.length === 1) throw err
+              failedParts.push(`${i + 1}`)
+            }
+          }
+          if (failedParts.length) throw new Error(`part ${failedParts.join(', ')} of ${pieces.length} could not be read, so some cards may be missing. Try uploading the file again`)
+        }
+      } else if (pdfs.length) {
         // Long PDFs are cut into short page ranges and read one range at a time, so no single request runs out of time.
         const pdf = pdfs[0]
         let parts = [{ blob: pdf, label: '' }]
@@ -149,7 +181,7 @@ export default function Deck() {
           capped = capped || r.capped
         }
       }
-      setMsg(`Added ${total} cards to review below.${capped ? ' This hit the card limit, so some may be missing. Upload the rest separately.' : ''}`)
+      setMsg(`Added ${total} cards to review below.${capped ? ' This hit the card limit, so some may be missing. Upload the rest separately.' : ''}${skippedImages ? ` Heads up: that file has ${skippedImages} picture${skippedImages > 1 ? 's' : ''} that could not be read. For anything in a picture, save the file as a PDF or take photos.` : ''}`)
     } catch (err) {
       setMsg(`Something went wrong: ${err.message}${total ? ` (${total} cards were added before that.)` : ''}`)
     }
@@ -254,10 +286,11 @@ export default function Deck() {
       <section className="card">
         <h3>Add cards</h3>
         <label className="pick">
-          <b>Choose photos or a PDF</b>
-          <span>Photos of flashcards or notes, or a PDF. Pick them all at once.</span>
+          <b>Choose photos or a file</b>
+          <span>Photos, a PDF, or a Word, PowerPoint, Excel, CSV or text file. Pick all the photos at once.</span>
           <span className="rule">Flashcards need two photos each, front and back, and both sides must have the same number written on them.</span>
-          <input type="file" accept="application/pdf,image/*" multiple onChange={uploadFiles} disabled={!!busy} />
+          <span className="warn">Word and PowerPoint files: only the typed text is read. Pictures, charts and diagrams inside them are skipped, so use a PDF or photos for those.</span>
+          <input type="file" accept="application/pdf,image/*,.docx,.pptx,.xlsx,.csv,.tsv,.txt,.md" multiple onChange={uploadFiles} disabled={!!busy} />
         </label>
         {busy && <p className="busy">{busy}</p>}
         {msg && <p className="note">{msg}</p>}

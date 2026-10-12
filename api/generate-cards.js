@@ -76,7 +76,9 @@ export default async function handler(req, res) {
       if (dlErr) throw new Error(`Could not read the file: ${dlErr.message}`)
       const buf = Buffer.from(await file.arrayBuffer())
       if (buf.length > MAX_BYTES) throw new Error('File is over 20 MB. Split it into smaller files.')
-      if (/\.jpe?g$/i.test(src.storage_path)) {
+      if (/\.txt$/i.test(src.storage_path)) {
+        blocks.push({ type: 'text', text: `Material (${src.filename}):\n${buf.toString('utf8')}` })
+      } else if (/\.jpe?g$/i.test(src.storage_path)) {
         anyImage = true
         blocks.push({ type: 'text', text: `Photo ${i + 1}:` })
         blocks.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: buf.toString('base64') } })

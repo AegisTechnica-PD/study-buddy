@@ -304,3 +304,4 @@ input[type=file]::file-selector-button { background: var(--raised); color: var(-
 .iconbtn { min-height: 0; padding: 7px; width: 34px; height: 34px; display: inline-grid; place-items: center; background: transparent; border-color: transparent; color: var(--muted); border-radius: 99px; flex: none; }
 .iconbtn:hover:not(:disabled) { color: var(--mark); background: var(--mark-soft); border-color: transparent; }
 .pick .rule { color: var(--chalk); font-weight: 600; margin-top: 10px; }
+.pick .warn { color: var(--warn); font-size: 13.5px; margin-top: 10px; }
