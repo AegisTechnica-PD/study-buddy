@@ -105,8 +105,17 @@ export default async function handler(req, res) {
     if (!resp.ok) throw new Error(json?.error?.message || `Anthropic API error ${resp.status}`)
 
     const raw = parseCards(json.content?.map((b) => b.text || '').join(''))
+    // Skip anything already in this deck (or this upload), so overlapping page ranges never make duplicates.
+    const { data: existing } = await admin.from('cards').select('front').eq('deck_id', source.deck_id).limit(5000)
+    const seenFronts = new Set((existing || []).map((c) => String(c.front).trim().toLowerCase()))
     const rows = raw
       .filter((c) => c && c.front && c.back)
+      .filter((c) => {
+        const k = String(c.front).trim().toLowerCase()
+        if (seenFronts.has(k)) return false
+        seenFronts.add(k)
+        return true
+      })
       .slice(0, maxCards)
       .map((c) => ({
         deck_id: source.deck_id,
@@ -117,6 +126,10 @@ export default async function handler(req, res) {
         wrong_answers: Array.isArray(c.wrong) ? c.wrong.slice(0, 3).map(String) : [],
         status: 'pending'
       }))
+    if (!rows.length && raw.length) {
+      await admin.from('sources').update({ status: 'done', card_count: 0 }).in('id', ids)
+      return res.json({ ok: true, count: 0, capped: false })
+    }
     if (!rows.length) throw new Error(anyImage ? 'No complete cards were found. For photos of two-sided cards, include both sides in the same upload.' : 'No cards were found in this file')
 
     const { error: insErr } = await admin.from('cards').insert(rows)

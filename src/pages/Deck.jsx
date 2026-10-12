@@ -1,3 +1,4 @@
+import { PDFDocument } from 'pdf-lib'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
@@ -94,14 +95,44 @@ export default function Deck() {
     setMsg('')
     let total = 0
     let capped = false
+    const failedParts = []
     try {
       if (pdfs.length) {
-        setBusy('Uploading PDF...')
-        const src = await uploadOne(pdfs[0], 0, pdfs[0], true)
-        setBusy('Reading the PDF and writing cards. This can take up to a minute...')
-        const r = await callApi('/api/generate-cards', { sourceId: src.id, mode })
-        total = r.count
-        capped = r.capped
+        // Long PDFs are cut into short page ranges and read one range at a time, so no single request runs out of time.
+        const pdf = pdfs[0]
+        let parts = [{ blob: pdf, label: '' }]
+        try {
+          const doc = await PDFDocument.load(await pdf.arrayBuffer(), { ignoreEncryption: true })
+          const n = doc.getPageCount()
+          const SIZE = 5
+          if (n > SIZE) {
+            parts = []
+            for (let a = 0; a < n; a += SIZE) {
+              const out = await PDFDocument.create()
+              const pages = await out.copyPages(doc, Array.from({ length: Math.min(SIZE, n - a) }, (_, k) => a + k))
+              pages.forEach((pg) => out.addPage(pg))
+              parts.push({ blob: new Blob([await out.save()], { type: 'application/pdf' }), label: ` (pages ${a + 1}-${Math.min(a + SIZE, n)})` })
+            }
+          }
+        } catch (_) {
+          parts = [{ blob: pdf, label: '' }]
+        }
+        for (let i = 0; i < parts.length; i++) {
+          const where = parts.length > 1 ? `part ${i + 1} of ${parts.length}` : 'the PDF'
+          try {
+            setBusy(`Uploading ${where}...`)
+            const named = { name: pdf.name.replace(/\.pdf$/i, '') + parts[i].label + '.pdf' }
+            const src = await uploadOne(named, i, parts[i].blob, true)
+            setBusy(`Reading ${where} and writing cards. Keep this page open...`)
+            const r = await callApi('/api/generate-cards', { sourceId: src.id, mode, maxCards: parts.length > 1 ? 40 : undefined })
+            total += r.count
+            capped = capped || r.capped
+          } catch (err) {
+            if (parts.length === 1) throw err
+            failedParts.push(`${i + 1}`)
+          }
+        }
+        if (failedParts.length) throw new Error(`part ${failedParts.join(', ')} of ${parts.length} could not be read, so some cards may be missing. Try uploading those pages again`)
       } else {
         // Photos go to Claude together, so the two sides of a physical card can be matched up.
         const ids = []

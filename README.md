@@ -76,7 +76,7 @@ A separate module (Math facts in the top bar) for addition, subtraction, multipl
 
 ## Costs and limits
 
-- PDF limit is 20 MB. Very long PDFs may time out at 60 seconds; split them by chapter.
+- PDF limit is 20 MB. Long PDFs are split into 5-page pieces in the browser and read one piece at a time, so a 27-page PDF takes a few minutes. Keep the page open until it finishes.
 - Each PDF costs a small amount of Anthropic API usage (typically cents).
 - Change the model with `ANTHROPIC_MODEL` if you want.
 
