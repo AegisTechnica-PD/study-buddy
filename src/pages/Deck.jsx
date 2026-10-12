@@ -13,7 +13,7 @@ export default function Deck() {
   const [deck, setDeck] = useState(null)
   const [cards, setCards] = useState([])
   const [sources, setSources] = useState([])
-  const [mode, setMode] = useState('generate')
+  const [mode, setMode] = useState('auto')
   const [busy, setBusy] = useState('')
   const [msg, setMsg] = useState('')
   const [front, setFront] = useState('')
@@ -63,6 +63,20 @@ export default function Deck() {
     }
   }
 
+  async function uploadOne(file, i, body, isPdf) {
+    const safe = file.name.replace(/\.[^.]*$/, '').replace(/[^a-zA-Z0-9._-]/g, '_') || 'photo'
+    const path = `${deck.owner_id}/${deck.id}/${Date.now()}-${i}-${safe}${isPdf ? '.pdf' : '.jpg'}`
+    const up = await supabase.storage.from('pdfs').upload(path, body, { contentType: isPdf ? 'application/pdf' : 'image/jpeg' })
+    if (up.error) throw up.error
+    const { data: src, error } = await supabase
+      .from('sources')
+      .insert({ deck_id: deck.id, owner_id: deck.owner_id, filename: file.name, storage_path: path })
+      .select()
+      .single()
+    if (error) throw error
+    return src
+  }
+
   async function uploadFiles(e) {
     const files = Array.from(e.target.files || [])
     e.target.value = ''
@@ -73,39 +87,38 @@ export default function Deck() {
     if (pdfs.length && imgs.length) return setMsg('Choose either one PDF or a set of photos, not both at once.')
     if (pdfs.length > 1) return setMsg('Upload one PDF at a time.')
     if (pdfs[0] && pdfs[0].size > 20 * 1024 * 1024) return setMsg('That PDF is over 20 MB. Split it into smaller files.')
-    if (imgs.length > 30) return setMsg('Up to 30 photos at a time.')
+    if (imgs.length > 40) return setMsg('Up to 40 photos at a time.')
     setMsg('')
     let total = 0
-    let failed = 0
-    const queue = pdfs.length ? pdfs : imgs
-    for (let i = 0; i < queue.length; i++) {
-      const file = queue[i]
-      const isPdf = file.type === 'application/pdf'
-      const label = isPdf ? 'PDF' : `photo ${i + 1} of ${queue.length}`
-      try {
-        setBusy(`Uploading ${label}...`)
-        const body = isPdf ? file : await toJpeg(file)
-        const safe = file.name.replace(/\.[^.]*$/, '').replace(/[^a-zA-Z0-9._-]/g, '_') || 'photo'
-        const path = `${deck.owner_id}/${deck.id}/${Date.now()}-${i}-${safe}${isPdf ? '.pdf' : '.jpg'}`
-        const up = await supabase.storage.from('pdfs').upload(path, body, { contentType: isPdf ? 'application/pdf' : 'image/jpeg' })
-        if (up.error) throw up.error
-        const { data: src, error } = await supabase
-          .from('sources')
-          .insert({ deck_id: deck.id, owner_id: deck.owner_id, filename: file.name, storage_path: path })
-          .select()
-          .single()
-        if (error) throw error
-        setBusy(isPdf ? 'Reading the PDF and writing cards. This can take up to a minute...' : `Reading ${label}...`)
+    let capped = false
+    try {
+      if (pdfs.length) {
+        setBusy('Uploading PDF...')
+        const src = await uploadOne(pdfs[0], 0, pdfs[0], true)
+        setBusy('Reading the PDF and writing cards. This can take up to a minute...')
         const r = await callApi('/api/generate-cards', { sourceId: src.id, mode })
-        total += r.count
-        if (r.capped) setMsg('This file hit the card limit, so some cards may be missing. Upload the rest as a second file.')
-      } catch (err) {
-        failed++
-        setMsg(`Something went wrong with ${label}: ${err.message}`)
+        total = r.count
+        capped = r.capped
+      } else {
+        // Photos go to Claude together, so the two sides of a physical card can be matched up.
+        const ids = []
+        for (let i = 0; i < imgs.length; i++) {
+          setBusy(`Preparing photo ${i + 1} of ${imgs.length}...`)
+          const src = await uploadOne(imgs[i], i, await toJpeg(imgs[i]), false)
+          ids.push(src.id)
+        }
+        for (let i = 0; i < ids.length; i += 20) {
+          const chunk = ids.slice(i, i + 20)
+          setBusy(`Reading photos ${i + 1} to ${i + chunk.length} of ${ids.length}. This can take up to a minute...`)
+          const r = await callApi('/api/generate-cards', { sourceIds: chunk, mode })
+          total += r.count
+          capped = capped || r.capped
+        }
       }
+      setMsg(`Added ${total} cards to review below.${capped ? ' This hit the card limit, so some may be missing. Upload the rest separately.' : ''}`)
+    } catch (err) {
+      setMsg(`Something went wrong: ${err.message}${total ? ` (${total} cards were added before that.)` : ''}`)
     }
-    if (!failed) setMsg((m) => `Added ${total} cards to review below.${m.startsWith('This file hit') ? ' ' + m : ''}`)
-    else setMsg((m) => `${m} Added ${total} cards from the rest.`)
     setBusy('')
     load()
   }
@@ -173,18 +186,25 @@ export default function Deck() {
       {deck.subject && <p className="muted">{deck.subject}</p>}
 
       <section className="card">
-        <h3>Add study material</h3>
-        <div className="seg">
-          <label><input type="radio" checked={mode === 'generate'} onChange={() => setMode('generate')} /> Make flashcards from my notes</label>
-          <label><input type="radio" checked={mode === 'extract'} onChange={() => setMode('extract')} /> This already has flashcards (PDF or photos of them), copy them as written</label>
-        </div>
-        <input type="file" accept="application/pdf,image/*" multiple onChange={uploadFiles} disabled={!!busy} />
-        <p className="muted">On a phone, choose Take Photo or Photo Library. You can pick several photos at once, one flashcard or page each. Check the review list afterward.</p>
+        <h3>Add cards</h3>
+        <label className="pick">
+          <b>Choose photos or a PDF</b>
+          <span>Photos of flashcards or notes, or a PDF. Pick them all at once. For two-sided flashcards, include both sides.</span>
+          <input type="file" accept="application/pdf,image/*" multiple onChange={uploadFiles} disabled={!!busy} />
+        </label>
         {busy && <p className="busy">{busy}</p>}
         {msg && <p className="note">{msg}</p>}
-        {sources.some((s) => s.status === 'error') && (
+        {sources.some((s) => s.status === 'error') && !msg && (
           <p className="err">Last failed upload: {sources.find((s) => s.status === 'error').error}</p>
         )}
+        <details>
+          <summary>Not what you wanted?</summary>
+          <div className="seg">
+            <label><input type="radio" checked={mode === 'auto'} onChange={() => setMode('auto')} /> Figure it out (default)</label>
+            <label><input type="radio" checked={mode === 'extract'} onChange={() => setMode('extract')} /> Copy the flashcards exactly as written</label>
+            <label><input type="radio" checked={mode === 'generate'} onChange={() => setMode('generate')} /> Write new flashcards from my notes</label>
+          </div>
+        </details>
       </section>
 
       <section className="card">

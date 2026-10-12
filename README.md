@@ -33,7 +33,7 @@ Sign in as `paul`, open **Admin > Students**, and add each kid with a username, 
 
 - **Login:** username + password. Under the hood the username maps to `username@studyapp.internal` in Supabase Auth. Only you (admin) can create accounts or reset passwords.
 - **Privacy:** row level security means each kid sees only their own decks, PDFs, and history. You see everyone's analytics. PDFs live in a private storage bucket.
-- **Adding material:** upload a PDF, or take photos of flashcards or notes (on a phone, choose Take Photo or Photo Library, several at once is fine), and pick one of two modes. Photos are shrunk on the device before upload. Blurry or cut-off photos give fewer cards, so check the review list.
+- **Adding material:** upload a PDF, or take photos of flashcards or notes (on a phone, choose Take Photo or Photo Library, several at once is fine), and pick one of two modes. Photos are shrunk on the device before upload and read together, so the two sides of a physical card (term on one photo, definition on another, any order) are matched automatically. Blurry or cut-off photos give fewer cards, so check the review list.
   - *Make flashcards from my notes:* Claude reads the PDF and writes up to 60 cards (one per term when the PDF is a term list) plus wrong answers for multiple choice.
   - *This PDF already has flashcards:* Claude copies the teacher's cards as written.
   - Either way the cards land in a review list first. Kids can edit or delete before approving.

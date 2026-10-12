@@ -295,3 +295,8 @@ tr.click:hover td { background: var(--raised); }
 }
 .tagline{margin:-6px 0 14px}
 input[type=file]::file-selector-button { background: var(--raised); color: var(--chalk); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; margin-right: 10px; font: inherit; font-weight: 600; cursor: pointer; }
+.pick { display: block; position: relative; border: 2px dashed var(--line); border-radius: var(--r-md); padding: 26px 20px; text-align: center; cursor: pointer; margin: 4px 0 14px; transition: border-color .14s, background-color .14s; }
+.pick:hover, .pick:focus-within { border-color: var(--mark); background: var(--mark-soft); }
+.pick b { color: var(--chalk); display: block; font: 700 20px/1.2 var(--font-display); margin-bottom: 6px; }
+.pick span { display: block; color: var(--muted); font-size: 14.5px; max-width: 46ch; margin: 0 auto; }
+.pick input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
