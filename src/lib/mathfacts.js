@@ -41,6 +41,51 @@ export function allFacts(op, max) {
 export const isTrivial = (f) =>
   f.op === 'add' || f.op === 'mul' ? f.a === 0 || f.b === 0 : f.op === 'sub' ? f.b === 0 || f.answer === 0 : f.a === 0
 
+// ---- Grade-appropriate levels --------------------------------------------------------------
+// Students practice at (grade - 1). Facts easier than the grade's floor are skipped as already known,
+// and the ceiling rises on its own as the student masters what is currently in range.
+const bucket = (g) => (g <= 2 ? 0 : g <= 4 ? 1 : g <= 7 ? 2 : 3)
+const ADD_CEIL = [10, 14, 18, 24]
+const MUL_CEIL = [25, 36, 49, 64, 81, 100, 121, 144]
+const FLOOR = { add: [0, 5, 10, 12], mul: [0, 5, 12, 20] }
+const START = { add: [0, 1, 2, 3], mul: [0, 2, 3, 5] }
+const UNLOCK_AT = 0.7 // share of the facts in range that must reach box 3 before the next step opens
+
+export const practiceGrade = (grade) => Math.max(1, (Number(grade) || 6) - 1)
+
+// Facts that are just "+1", "x1", "/1" and the like teach nothing past the early grades.
+function tooEasy(f, b) {
+  if (b === 0) return false
+  const small = b >= 2 ? 2 : 1 // from grade 5 up, +2 and -2 are skipped too
+  if (f.op === 'add') return Math.min(f.a, f.b) <= small
+  if (f.op === 'sub') return f.b <= small || f.answer <= small
+  if (f.op === 'mul') return f.a === 1 || f.b === 1
+  return f.answer === 1 || f.b === 1
+}
+
+const diff = (f) => (f.op === 'mul' ? f.a * f.b : f.op === 'add' ? f.a + f.b : f.a)
+
+export function levelInfo(op, max, grade, stats = {}) {
+  const adds = op === 'add' || op === 'sub'
+  const ceils = adds ? ADD_CEIL : MUL_CEIL
+  const b = bucket(practiceGrade(grade))
+  const floor = FLOOR[adds ? 'add' : 'mul'][b]
+  const inRange = (c) => allFacts(op, max).filter((f) => diff(f) >= floor && diff(f) <= c && !tooEasy(f, b))
+  let i = START[adds ? 'add' : 'mul'][b]
+  while (i < ceils.length - 1) {
+    const facts = inRange(ceils[i])
+    if (!facts.length) { i++; continue }
+    const learned = facts.filter((f) => (stats[keyOf(f)]?.box || 0) >= 3).length
+    if (learned / facts.length < UNLOCK_AT) break
+    i++
+  }
+  let pool = inRange(ceils[i])
+  if (!pool.length) pool = allFacts(op, max) // tiny ranges (like numbers up to 5): never leave the pool empty
+  return { pool, ceiling: ceils[i], step: i + 1, steps: ceils.length }
+}
+
+export const levelPool = (op, max, grade, stats) => levelInfo(op, max, grade, stats).pool
+
 export const universeSize = (op, max = 12) => allFacts(op, max).length
 
 // Correct and fast moves a fact up a box. Correct but slow keeps its box. Wrong resets to box 1.
