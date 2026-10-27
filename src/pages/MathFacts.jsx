@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { useAuth } from '../auth.jsx'
 import { useActiveTimer } from '../lib/useActiveTimer.js'
-import { OPS, OP_LIST, allFacts, keyOf, nextMathStat, pickNext, textOf, thresholdMs } from '../lib/mathfacts.js'
+import { OPS, OP_LIST, keyOf, levelPool, nextMathStat, pickNext, textOf, thresholdMs } from '../lib/mathfacts.js'
 import { fmtMin } from '../lib/stats.js'
 
 const TIMED_SECONDS = 60
@@ -12,7 +12,7 @@ const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 export default function MathFacts() {
   const { profile } = useAuth()
   const nav = useNavigate()
-  const [cfg, setCfg] = useState({ ops: [...OP_LIST], max: 9, mode: 'practice', count: 20 })
+  const [cfg, setCfg] = useState({ ops: [...OP_LIST], max: 12, mode: 'practice', count: 20 })
   const [phase, setPhase] = useState('setup')
   const [stats, setStats] = useState({})
   const [q, setQ] = useState(null) // { fact, retry }
@@ -55,7 +55,7 @@ export default function MathFacts() {
   const timed = cfg.mode === 'timed'
 
   async function start() {
-    const pool = cfg.ops.flatMap((op) => allFacts(op, cfg.max))
+    const pool = cfg.ops.flatMap((op) => levelPool(op, cfg.max, profile.grade, stats))
     const { data } = await supabase.from('sessions').insert({ user_id: profile.id, mode: 'math' }).select().single()
     sessionId.current = data?.id
     run.current = { pool, recent: [], retries: [], shown: 0, first: 0, firstCorrect: 0, fast: 0, ms: [], missed: [], newCount: 0, ended: false }
@@ -85,6 +85,8 @@ export default function MathFacts() {
     if (ri >= 0 || (practiceDone && r.retries.length)) {
       item = { fact: r.retries.splice(ri >= 0 ? ri : 0, 1)[0].fact, retry: true }
     } else {
+      // Re-check the level as facts get learned, so harder facts open up mid-session.
+      if (r.shown > 0 && r.shown % 10 === 0) r.pool = cfg.ops.flatMap((op) => levelPool(op, cfg.max, profile.grade, statsRef.current))
       const fact = pickNext(r.pool, statsRef.current, { newLimit: 8, newCount: r.newCount, recent: r.recent })
       if (!statsRef.current[keyOf(fact)]) r.newCount += 1
       item = { fact, retry: false }
@@ -185,9 +187,10 @@ export default function MathFacts() {
         </p>
         <section className="card">
           <h3>What to practice</h3>
+          <p className="muted">Facts start at your level and get harder as you learn them. The count shows how many are in your range right now.</p>
           <div className="chips">
             {OP_LIST.map((op) => {
-              const pool = allFacts(op, cfg.max)
+              const pool = levelPool(op, cfg.max, profile.grade, stats)
               const fluent = pool.filter((f) => (stats[keyOf(f)]?.box || 0) >= 4).length
               return (
                 <button key={op} className={`chip ${cfg.ops.includes(op) ? 'on' : ''}`} onClick={() => toggleOp(op)}>
