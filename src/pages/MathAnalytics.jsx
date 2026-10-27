@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { C, dot } from '../lib/chartColors.js'
 import { supabase } from '../lib/supabase.js'
-import { OPS, OP_LIST, factAt, keyOf, textOf, thresholdMs, universeSize } from '../lib/mathfacts.js'
+import { OPS, OP_LIST, factAt, isTrivial, keyOf, textOf, thresholdMs, universeSize } from '../lib/mathfacts.js'
 import { weekStart } from '../lib/stats.js'
 
 const DAY = 864e5
@@ -102,8 +102,8 @@ export default function MathAnalytics({ userId }) {
 }
 
 function FactGrid({ op, stats }) {
-  const idx = Array.from({ length: 13 }, (_, i) => i)
-  const cols = op === 'div' ? idx.filter((j) => j >= 1) : idx
+  const idx = Array.from({ length: 12 }, (_, i) => i + 1)
+  const cols = idx
   return (
     <div className="gridwrap">
       <table className="fgrid">
@@ -129,6 +129,8 @@ function FactGrid({ op, stats }) {
   )
 }
 
+const triv = (s) => isTrivial({ op: s.op, a: s.a, b: s.b, answer: s.op === 'sub' ? s.a - s.b : 1 })
+
 function compute({ attempts, stats }) {
   const now = Date.now()
   const first = attempts.filter((a) => !a.is_retry)
@@ -141,7 +143,7 @@ function compute({ attempts, stats }) {
       op,
       acc: mine.length ? right.length / mine.length : null,
       ms: median(right.map((a) => a.response_ms).filter(Boolean)),
-      fluent: stats.filter((s) => s.op === op && s.box >= 4).length,
+      fluent: stats.filter((s) => s.op === op && s.box >= 4 && !triv(s)).length,
       total: universeSize(op, 12)
     }
   }).filter((o) => o.acc !== null || o.fluent > 0)
@@ -162,6 +164,7 @@ function compute({ attempts, stats }) {
   })
 
   const trouble = stats
+    .filter((s) => !triv(s))
     .filter((s) => s.correct_count + s.wrong_count >= 2 && (s.wrong_count > 0 || (s.avg_ms || 0) > thresholdMs(s.op) * 1.5))
     .map((s) => ({ ...factAt(s.op, 0, 0), ...s, ...rebuild(s) }))
     .sort((x, y) => (y.wrong_count / (y.correct_count + y.wrong_count)) - (x.wrong_count / (x.correct_count + x.wrong_count)) || (y.avg_ms || 0) - (x.avg_ms || 0))

@@ -30,11 +30,16 @@ export function factAt(op, i, j) {
 
 export function allFacts(op, max) {
   const out = []
-  for (let i = 0; i <= max; i++) {
-    for (let j = op === 'div' ? 1 : 0; j <= max; j++) out.push(factAt(op, i, j))
+  // Start at 1 everywhere: nothing with a zero is ever asked (0 x n, n + 0, n - 0, n - n, 0 / n).
+  for (let i = 1; i <= max; i++) {
+    for (let j = 1; j <= max; j++) out.push(factAt(op, i, j))
   }
   return out
 }
+
+// True for the zero facts old versions asked, so existing history for them can be ignored.
+export const isTrivial = (f) =>
+  f.op === 'add' || f.op === 'mul' ? f.a === 0 || f.b === 0 : f.op === 'sub' ? f.b === 0 || f.answer === 0 : f.a === 0
 
 export const universeSize = (op, max = 12) => allFacts(op, max).length
 
